@@ -11,15 +11,12 @@ namespace ConsoleRenderer
 
         static public float Min(float a, float b)
         {
-            if (a < b) return a;
-            else return b;
+            return a < b ? a:b; 
         }
 
         static public float Max(float a, float b)
         {
-            if (a > b) return a;
-            else return b;
-
+            return a > b ? a : b;
         }
 
 

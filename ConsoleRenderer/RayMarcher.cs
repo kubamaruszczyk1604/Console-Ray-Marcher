@@ -11,7 +11,7 @@ using System.Diagnostics;
 
 
 
-// WINDOWS CONSOLE RENDERER BASED ON RAY MARCHING TECHNIQUE 
+// WINDOWS CONSOLE RAY MARCHING DEMO
 // BY KUBA MARUSZCZYK
 
 namespace ConsoleRenderer
@@ -51,12 +51,12 @@ namespace ConsoleRenderer
         public const float MIN_DIST = 1.0f;
         public const float MAX_DIST = 1000.0f;
         const float EPSILON = 0.01f;
-        const float DEG_TO_RAD = 0.017453292519943295769236907684886f;
-        const float M_PI = 3.14159265358979323846f;
+        const float DEG_TO_RAD = 0.017453f;
+        const float M_PI = 3.141592653f;
 
 
         private const float m_cNearPlane = 1;
-        private const float m_cFarPlane = 1000;
+        private const float m_cFarPlane = 100;
         private Vector3 m_EyePosition = new Vector3(0, 0, -6);
 
 
@@ -69,14 +69,12 @@ namespace ConsoleRenderer
 
         static private float m_TotalTime = 0;
 
-        //Used for animations - needs to be replaced with global time
         static public float TotalTime
         {
             get
             { return m_TotalTime; }
         }
 
-        //ALL OBJECTS TO BE RENDERED
         public List<RenderObject> m_RenderableObjects;
 
 
@@ -87,7 +85,7 @@ namespace ConsoleRenderer
             Console.SetWindowSize(width + 10, height + 4);
             m_AspectRatio = (float)m_ScrWidth / (float)m_ScrHeight;
             m_Fov = 80 * DEG_TO_RAD;
-            m_FovDist = (float)Math.Tan(m_Fov * 0.5f * M_PI / (180.0f * DEG_TO_RAD));
+            m_FovDist = (float)Math.Tan(m_Fov * 0.5f);
 
             m_RenderableObjects = new List<RenderObject>();
         }
@@ -95,13 +93,12 @@ namespace ConsoleRenderer
         public void RenderLoop()
         {
             FrameTimer.Update();
-            //Initial setup
             Console.CursorVisible = false;
             Console.Clear();
             Buffer.Initialize((short)m_ScrWidth, (short)m_ScrHeight);
             Console.ForegroundColor = ConsoleColor.DarkGray;
-           // Console.BackgroundColor = ConsoleColor.White;
-            string title = " WINDOWS CONSOLE 3D GRAPHICS RENDERING ENGINE";
+            string title = " WINDOWS CONSOLE RAYMARCHING DEMO";
+            
             Console.Write(title);
 
             while (true)//Render Loop
@@ -110,10 +107,11 @@ namespace ConsoleRenderer
                 FrameTimer.Update();
                 Console.ForegroundColor = ConsoleColor.Red;
                 Console.BackgroundColor = ConsoleColor.Gray;
-                Console.Write(" FPS: "+ FrameTimer.GetFPS() + "   FRAME TIME: " + FrameTimer.GetDeltaTime()+"s ");
-                
-             
-                var resetEvent = new ManualResetEvent(false); // Will be reset when buffer is ready to be swaped
+                string fpsStr = " FPS: " + FrameTimer.GetFPS() + "   FRAME TIME: " + FrameTimer.GetDeltaTime() + "s ";
+                Console.Write(fpsStr);
+                Console.Title = fpsStr;
+
+                var resetEvent = new ManualResetEvent(false); 
 
                 //For each scanline..
                 for (int y = 0; y < m_ScrHeight; ++y)
@@ -133,14 +131,12 @@ namespace ConsoleRenderer
 
                         }
 
-                        if (scanLine == m_ScrHeight - 1) resetEvent.Set();
+                        if (scanLine >= m_ScrHeight - 1) resetEvent.Set();
                     }), new object[] { y });
                 }
 
-                //Thread.Sleep(10);
                 resetEvent.WaitOne();
-                // Cycle counter hack :D
-                m_TotalTime +=  FrameTimer.GetDeltaTime()*1.2f;
+                m_TotalTime +=  FrameTimer.GetDeltaTime();
                 Buffer.Swap();
             }
         }
@@ -159,12 +155,10 @@ namespace ConsoleRenderer
             ray.Orgin = m_EyePosition;
             ray.Direction = Vector3.Normalize(new Vector3(px, py, 1f));
             int hitIndex;
-            //Get shortest
-            float shortestDistance = CalculateShortestDistance(ref ray, MIN_DIST, MAX_DIST, out hitIndex);
-            //Check for hits
+            float shortestDistance = RayMarch(ref ray, MIN_DIST, MAX_DIST, out hitIndex);
+            //Check hit
             if (shortestDistance > (MAX_DIST - EPSILON)) // NO HIT
             {
-                //Buffer.Add((char)219, 0x0001 | 0x0000);
                 Buffer.AddAsync((char)219, 0x0001 | 0x0000, x, y);
             }
             else //HIT
@@ -184,7 +178,6 @@ namespace ConsoleRenderer
                     char c = (char)0;
                     short bm = 0;
                     ProduceShadedColor(out c, out bm, lIntensity, colA, colB);
-                    //Buffer.Add(c, bm);
                     Buffer.AddAsync(c, bm, x, y);
 
 
@@ -194,7 +187,6 @@ namespace ConsoleRenderer
                     short colA = ((UnlitMaterial)currentMat).ColorA;
                     short colB = ((UnlitMaterial)currentMat).ColorB;
                     Block bl = ((UnlitMaterial)currentMat).BlockType;
-                    // Buffer.Add((char)bl, (short)(colA|colB));
                     Buffer.AddAsync((char)bl, (short)(colA | colB), x, y);
                 }
 
@@ -204,16 +196,14 @@ namespace ConsoleRenderer
         }
 
 
-
-        // Marching baby
-        private float CalculateShortestDistance(ref Ray ray, float start, float end, out int hitIndex)
+        private float RayMarch(ref Ray ray, float start, float end, out int hitIndex)
         {
             float depth = start;
             hitIndex = 0;
             for (int i = 0; i < MAX_MARCHING_STEPS; ++i)
             {
                 float dist = SceneSDF(ray.Orgin + depth * ray.Direction, false, out hitIndex);
-                if (dist < EPSILON) // hit baby
+                if (dist < EPSILON) // hit 
                 {
                     return depth;
                 }
@@ -227,16 +217,12 @@ namespace ConsoleRenderer
         }
 
 
-        // Shortes distance for single hit in the scene - GIVES THE NEAREST HIT
         float SceneSDF(Vector3 rayHit, bool normalPass, out int hitIndex)
         {
             hitIndex = 0;
-            //Shortest distance total - ALWAYS WILL BE THE NEAREST HIT!
-            float nearestHit = MAX_DIST + 10; // 10000 so the next union will always override it
-            if (m_RenderableObjects.Count == 0) return nearestHit; //way faaar :D
-                                                                   // rayHit += new Vector3(0, 0, (float)Math.Sin(CycleCount)*10);
+            float nearestHit = MAX_DIST + 10; 
+            if (m_RenderableObjects.Count == 0) return nearestHit; 
             rayHit *= Matrix3.CreateRotationY((float)Math.Sin(TotalTime * 0.8) * 0.06f);
-            // rayHit *= Matrix3.CreateRotationX((float)Math.Cos(CycleCount*0.2) * 0.1f);
             for (int i = 0; i < m_RenderableObjects.Count; ++i)
             {
                 float currentDist = m_RenderableObjects[i].CalculateDistance(rayHit, FrameTimer.GetDeltaTime());
@@ -246,7 +232,6 @@ namespace ConsoleRenderer
                 {
                     if (nearestHit == currentDist)
                     {
-                        // m_FisrtHitIndex = i;
                         hitIndex = i;
                     }
                 }
@@ -269,13 +254,11 @@ namespace ConsoleRenderer
         }
 
 
-        /* LIGHTING EQUATION */
+        /* DIFFUSE LIGHTING  */
 
         float CalculateLight(Vector3 lightDir, Vector3 normal)
         {
-            //lightDir *= Matrix3.CreateRotationY((float)Math.Sin(CycleCount * 0.8) * 0.06f);
             Vector3 nLightDirection = lightDir.Normalized();
-            //angle between direction vector and surface normal
             float theta = Vector3.Dot(nLightDirection, normal);
             float totalDiffuse = theta;
 
@@ -316,7 +299,7 @@ namespace ConsoleRenderer
 
 
         /* COLOR INTRNSITY CREATOR FOR LIGHT */
-        //TO DO: NEEDS A BETTER WEIGHTING
+        //TO DO: Replace conditionals with LUT
         void ProduceShadedColor(out char block, out short bitCol, float intensity, short bColor, short fColor)
         {
             block = (char)Block.Solid;
