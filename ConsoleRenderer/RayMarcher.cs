@@ -47,17 +47,17 @@ namespace ConsoleRenderer
     {
 
 
-        const int MAX_MARCHING_STEPS = 255;
+        const int MAX_MARCHING_STEPS = 200;
         public const float MIN_DIST = 1.0f;
-        public const float MAX_DIST = 1000.0f;
+        public const float MAX_DIST = 100.0f;
         const float EPSILON = 0.01f;
         const float DEG_TO_RAD = 0.017453f;
         const float M_PI = 3.141592653f;
 
 
-        private const float m_cNearPlane = 1;
-        private const float m_cFarPlane = 100;
-        private Vector3 m_EyePosition = new Vector3(0, 0, -6);
+        private const float m_cNearPlane = 1.0f;
+        private const float m_cFarPlane = 100.0f;
+        private Vector3 m_EyePosition = new Vector3(0, 0, -6.0f);
 
 
         private int m_ScrWidth;
@@ -84,7 +84,7 @@ namespace ConsoleRenderer
             m_ScrHeight = height;
             Console.SetWindowSize(width + 10, height + 4);
             m_AspectRatio = (float)m_ScrWidth / (float)m_ScrHeight;
-            m_Fov = 80 * DEG_TO_RAD;
+            m_Fov = 80.0f * DEG_TO_RAD;
             m_FovDist = (float)Math.Tan(m_Fov * 0.5f);
 
             m_RenderableObjects = new List<RenderObject>();
@@ -126,9 +126,7 @@ namespace ConsoleRenderer
 
                         for (int x = 0; x < m_ScrWidth; ++x)
                         {
-
                             Draw(x, scanLine);// Write to buffer
-
                         }
 
                         if (scanLine >= m_ScrHeight - 1) resetEvent.Set();
@@ -146,14 +144,13 @@ namespace ConsoleRenderer
             float pixelX = x - m_ScrWidth / 2;
             float pixelY = -(y - m_ScrHeight / 2);
 
-            float px = pixelX / ((float)m_ScrWidth) / 2.0f;
-            float py = pixelY / ((float)m_ScrHeight) / 2.0f;
-            px *= m_FovDist; // TO DO: consider aspect ratio 
+            float px = pixelX / ((float)m_ScrWidth) * 0.5f;
+            float py = pixelY / ((float)m_ScrHeight) * 0.5f;
+            px *= m_FovDist; 
             py *= m_FovDist;
-
             Ray ray;
             ray.Orgin = m_EyePosition;
-            ray.Direction = Vector3.Normalize(new Vector3(px, py, 1f));
+            ray.Direction = Vector3.Normalize(new Vector3(px, py, 1.0f));
             int hitIndex;
             float shortestDistance = RayMarch(ref ray, MIN_DIST, MAX_DIST, out hitIndex);
             //Check hit
@@ -163,7 +160,7 @@ namespace ConsoleRenderer
             }
             else //HIT
             {
-                Vector3 hitPoint = ray.Orgin + ray.Direction.Normalized() * shortestDistance;
+                Vector3 hitPoint = ray.Orgin + ray.Direction * shortestDistance;
 
                 Material currentMat = m_RenderableObjects[hitIndex].RenderMaterial;
 
